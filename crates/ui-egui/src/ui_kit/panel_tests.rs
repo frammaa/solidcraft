@@ -1122,6 +1122,27 @@ fn inset_border_skips_tiny_or_invalid_surfaces_and_keeps_dock_contacts_square() 
 }
 
 #[test]
+fn a_card_scrolled_out_of_view_paints_no_bevel_or_inset_outside_the_scroll_area() {
+    let mut t = crate::theme_files::resolve(crate::theme_files::builtin().iter().find(|t| t.id == "solidcraft-95").unwrap());
+    t.borders.primary_inset = Some(crate::theme::InsetBorder { stroke: egui::Stroke::new(1.0, egui::Color32::YELLOW), gap: 3.0 });
+    let _restore = crate::theme::scoped_tokens(t);
+    let ctx = crate::fonts::test_context();
+    let (scroll, card) = (
+        egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(200.0, 100.0)),
+        egui::Rect::from_min_size(egui::pos2(0.0, 300.0), egui::vec2(200.0, 60.0)),
+    );
+    let output = crate::test_support::frame(&ctx, egui::RawInput::default(), |ui| {
+        let mut clipped = ui.new_child(egui::UiBuilder::new().max_rect(scroll));
+        clipped.set_clip_rect(scroll);
+        Container::paint_inset(clipped.painter(), card, egui::Frame::NONE);
+    });
+    assert!(!output.shapes.is_empty(), "the chrome is painted, and clipped away");
+    for shape in &output.shapes {
+        assert!(!shape.clip_rect.intersects(card), "painted outside the scroll area: {:?}", shape.clip_rect);
+    }
+}
+
+#[test]
 fn menu_companion_is_visible_in_frame_padding_and_bounded_by_its_surface() {
     let mut t = Tokens::dark();
     t.borders.primary = Some(egui::Stroke::new(2.0, egui::Color32::WHITE));

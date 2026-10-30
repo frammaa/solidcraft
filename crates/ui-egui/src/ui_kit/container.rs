@@ -256,13 +256,18 @@ impl Container {
     }
 
     /// Optional companion to a primary outline, painted inside the allocated surface.
-    /// It consumes no layout space or input target. Tiny/collapsed surfaces omit it.
+    /// It consumes no layout space or input target. Tiny/collapsed surfaces omit it. It stays
+    /// inside the painter's clip: a card scrolled out of a scroll area takes its chrome with it.
     pub(crate) fn paint_inset(painter: &egui::Painter, widget: egui::Rect, frame: Frame) {
+        Self::paint_inset_within(painter, widget, frame, painter.clip_rect().intersect(widget));
+    }
+
+    fn paint_inset_within(painter: &egui::Painter, widget: egui::Rect, frame: Frame, clip: egui::Rect) {
         let t = Tokens::get();
+        let mut painter = painter.clone();
+        painter.set_clip_rect(clip.intersect(painter.ctx().content_rect()));
         if let Some(bevel) = t.borders.bevel {
-            let mut chrome = painter.clone();
-            chrome.set_clip_rect(widget.intersect(painter.ctx().content_rect()));
-            bevel.paint(&chrome, widget, frame.corner_radius, false, true);
+            bevel.paint(&painter, widget, frame.corner_radius, false, true);
         }
         let Some(inset) = t.borders.primary_inset else {
             return;
@@ -274,10 +279,6 @@ impl Container {
         }
         let reduce = |r: u8| r.saturating_sub(distance.ceil() as u8);
         let radius = frame.corner_radius;
-        // A host's content clip excludes its padding. The companion belongs to the whole
-        // host, so clip to that known surface and the viewport instead of the content well.
-        let mut painter = painter.clone();
-        painter.set_clip_rect(widget.intersect(painter.ctx().content_rect()));
         painter.rect_stroke(
             rect,
             egui::CornerRadius { nw: reduce(radius.nw), ne: reduce(radius.ne), sw: reduce(radius.sw), se: reduce(radius.se) },
@@ -294,7 +295,10 @@ impl Container {
 
     /// Decorate the content-hugging frame of a popup or feature sheet after its contents.
     pub(crate) fn finish_content(ui: &egui::Ui, frame: Frame) {
-        Self::paint_inset(ui.painter(), frame.widget_rect(ui.min_rect()), frame);
+        // A host's content clip excludes its padding. The companion belongs to the whole
+        // host, so clip to that known surface instead of the content well.
+        let widget = frame.widget_rect(ui.min_rect());
+        Self::paint_inset_within(ui.painter(), widget, frame, widget);
     }
 
     pub fn area(self, id: Id) -> egui::Area {
